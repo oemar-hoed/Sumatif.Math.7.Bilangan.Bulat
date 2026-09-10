@@ -60,7 +60,8 @@
         /* Results */
         .result-box { text-align: center; }
         .score-display { font-size: 48px; font-weight: bold; color: var(--primary); margin: 10px 0; }
-        .cheat-display { color: var(--danger); font-weight: bold; margin-bottom: 20px; }
+        .cheat-display { color: var(--danger); font-weight: bold; margin-bottom: 5px; }
+        .db-status { background: #d1fae5; color: #065f46; padding: 8px; border-radius: 6px; font-size: 14px; display: inline-block; margin-bottom: 20px; }
     </style>
 </head>
 <body>
@@ -144,6 +145,8 @@
             <div class="score-display" id="res-score">0 / 50</div>
             <p style="font-size: 14px; color: #4b5563;">*Nilai soal uraian akan ditambahkan manual oleh Guru.</p>
             <p class="cheat-display" id="res-cheat"></p>
+            <p id="res-penalty" style="color: var(--danger); font-weight: bold; margin-bottom: 15px; display: none;"></p>
+            <div class="db-status" id="db-status-badge" style="display:none;">☁️ Nilai sedang dikirim ke database guru...</div>
         </div>
         <button class="btn-success" onclick="downloadPNG()">📸 Simpan sebagai PNG</button>
         <button style="background: #25D366;" onclick="sendWhatsApp()">💬 Kirim ke WhatsApp Guru</button>
@@ -159,14 +162,17 @@
 
     <script>
         // ==========================================
-        // KONFIGURASI NOMOR WHATSAPP GURU
-        // Gunakan format 62 (contoh: 6281234567890) tanpa angka 0 di depan
+        // 1. KONFIGURASI NOMOR WHATSAPP GURU
+        // Gunakan format 62 (contoh: 6281231239331) tanpa angka 0 di depan
         const NOMOR_WA_GURU = "6281231239331"; 
+
+        // 2. KONFIGURASI URL GOOGLE SPREADSHEET (APPS SCRIPT)
+        // Masukkan URL Web App di antara tanda kutip di bawah ini
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzGlGT5F-FYmx6Tj6XLq3b_xq8OIqWtxLQ_Ws9iwwMPyE95BCvzt3Ot_CcrnrCFuo4Y/exec";
         // ==========================================
 
         // Database Soal
         const rawQuestions = [
-            // 10 PG Tunggal (SC) - Bobot 3
             { type: 'sc', q: "Suhu di kota A adalah -5°C dan suhu di kota B adalah 18°C. Selisih suhu di kedua kota tersebut adalah...", options: ["13°C", "23°C", "-23°C", "12°C"], answer: 1 },
             { type: 'sc', q: "Hasil dari -15 + (-12) : 3 - 5 × (-2) adalah...", options: ["-9", "-11", "9", "-29"], answer: 0 },
             { type: 'sc', q: "KPK dari 15, 20, dan 30 adalah...", options: ["30", "60", "120", "150"], answer: 1 },
@@ -178,14 +184,12 @@
             { type: 'sc', q: "Bentuk faktorisasi prima dari bilangan 120 adalah...", options: ["2³ × 3 × 5", "2² × 3² × 5", "2 × 3 × 5²", "2³ × 3²"], answer: 0 },
             { type: 'sc', q: "Dalam kompetisi matematika, jawaban benar diberi skor 4, salah diberi skor -2, dan tidak dijawab skor 0. Dari 40 soal, Ali menjawab 30 soal dengan benar dan 5 soal tidak dijawab. Total nilai yang diperoleh Ali adalah...", options: ["100", "110", "115", "120"], answer: 1 },
             
-            // 5 PG Kompleks (MC) - Bobot 4 - Jawaban berupa array indeks
             { type: 'mc', q: "Manakah dari pernyataan berikut yang BENAR mengenai bilangan bulat? <i>(Pilih semua jawaban yang tepat)</i>", options: ["-25 lebih besar dari -30", "Suhu 10°C lebih dingin dari -2°C", "-8 + 12 = 4", "Jarak bisa bernilai negatif"], answer: [0, 2] },
             { type: 'mc', q: "Faktor persekutuan dari 36 dan 54 di bawah ini yang benar adalah... <i>(Pilih semua jawaban yang tepat)</i>", options: ["6", "9", "12", "18"], answer: [0, 1, 3] },
             { type: 'mc', q: "<b>(HOTS)</b> Rina akan membagikan 60 pensil dan 90 buku kepada teman-temannya dengan jumlah sama banyak tanpa bersisa. Pernyataan yang tepat adalah...", options: ["FPB dari 60 dan 90 adalah 30", "Paling banyak ada 30 anak yang menerima barang", "Setiap anak menerima 3 pensil", "Setiap anak menerima 3 buku"], answer: [0, 1, 3] },
             { type: 'mc', q: "<b>(Finansial)</b> Pak Joko berutang Rp200.000 kepada si A dan Rp150.000 kepada si B. Pak Joko baru saja menerima upah kerja Rp500.000. Pernyataan yang benar dari situasi tersebut adalah...", options: ["Total utang Pak Joko adalah Rp350.000", "Sisa uang Pak Joko setelah membayar semua utang adalah Rp150.000", "Pak Joko masih memiliki sisa utang yang belum dibayar", "Uang Pak Joko cukup untuk melunasi semua utangnya"], answer: [0, 1, 3] },
             { type: 'mc', q: "Di antara operasi bilangan bulat berikut, mana saja yang menghasilkan nilai bernilai POSITIF?", options: ["-10 × (-3)", "-50 : 5", "-12 + 20", "8 - 15"], answer: [0, 2] },
 
-            // 5 Uraian (Essay)
             { type: 'essay', q: "Jelaskan langkah-langkah menemukan KPK dari 24, 36, dan 40 menggunakan faktorisasi prima!" },
             { type: 'essay', q: "<b>(HOTS)</b> Sebuah kapal selam berada di kedalaman 250 meter di bawah permukaan laut. Kapal itu naik sejauh 85 meter untuk menghindari terumbu karang, lalu turun kembali 110 meter. Tuliskan bentuk operasi bilangan bulatnya dan tentukan posisi kapal selam sekarang!" },
             { type: 'essay', q: "<b>(Finansial)</b> Dika ingin membeli sepeda seharga Rp850.000. Saat ini ia memiliki tabungan Rp300.000. Jika Dika mampu menyisihkan uang sakunya sebesar Rp25.000 setiap minggu, berapa minggu waktu yang dibutuhkan Dika agar bisa membeli sepeda tanpa harus berutang? Jelaskan perhitunganmu!" },
@@ -199,7 +203,6 @@
         let isExamRunning = false;
         let cheatCount = 0;
 
-        // Audio System for cheating
         let audioCtx;
         let oscillator;
         let intervalId;
@@ -224,10 +227,9 @@
                 return;
             }
 
-            // Attempt Fullscreen
             const elem = document.documentElement;
             if (elem.requestFullscreen) {
-                elem.requestFullscreen().catch(err => console.log("Fullscreen ditolak: ", err));
+                elem.requestFullscreen().catch(err => console.log("Fullscreen ditolak"));
             } else if (elem.webkitRequestFullscreen) {
                 elem.webkitRequestFullscreen();
             }
@@ -235,12 +237,9 @@
             document.getElementById('display-name').innerText = name;
             document.getElementById('display-class').innerText = cls + ' / ' + no;
 
-            // PENGACAKAN BERDASARKAN KELOMPOK (Sesuai Request)
             const scQuestions = shuffleArray(rawQuestions.filter(q => q.type === 'sc'));
             const mcQuestions = shuffleArray(rawQuestions.filter(q => q.type === 'mc'));
             const essayQuestions = shuffleArray(rawQuestions.filter(q => q.type === 'essay'));
-            
-            // Gabungkan urutannya: SC -> MC -> Essay
             questions = [...scQuestions, ...mcQuestions, ...essayQuestions];
 
             buildIndicators();
@@ -409,17 +408,46 @@
                 }
             }
 
-            document.getElementById('res-name').innerText = document.getElementById('student-name').value;
-            document.getElementById('res-class').innerText = document.getElementById('student-class').value;
-            document.getElementById('res-no').innerText = document.getElementById('student-no').value;
+            const studentName = document.getElementById('student-name').value;
+            const studentClass = document.getElementById('student-class').value;
+            const studentNo = document.getElementById('student-no').value;
+
+            document.getElementById('res-name').innerText = studentName;
+            document.getElementById('res-class').innerText = studentClass;
+            document.getElementById('res-no').innerText = studentNo;
             document.getElementById('res-score').innerText = `${score} / 50`;
             
             const cheatEl = document.getElementById('res-cheat');
+            const penaltyEl = document.getElementById('res-penalty');
+            
             if (cheatCount > 0) {
-                cheatEl.innerText = `⚠️ Terdeteksi ${cheatCount} kali pelanggaran (keluar layar/tab)!`;
+                let penalty = cheatCount * 2;
+                cheatEl.innerText = `⚠️ Terdeteksi ${cheatCount} kali pelanggaran!`;
+                penaltyEl.innerText = `🔻 Catatan: Terdapat pengurangan poin -${penalty} (Akan disesuaikan Guru pada nilai akhir)`;
+                penaltyEl.style.display = 'block';
             } else {
                 cheatEl.style.color = 'var(--success)';
                 cheatEl.innerText = `✅ Bersih! Tidak ada pelanggaran terdeteksi.`;
+                penaltyEl.style.display = 'none';
+            }
+
+            if (GOOGLE_SCRIPT_URL !== "ISI_URL_APPS_SCRIPT_DISINI" && GOOGLE_SCRIPT_URL !== "") {
+                const dbBadge = document.getElementById('db-status-badge');
+                dbBadge.style.display = 'inline-block';
+                
+                const urlParams = `?nama=${encodeURIComponent(studentName)}&kelas=${encodeURIComponent(studentClass)}&no=${encodeURIComponent(studentNo)}&skor=${encodeURIComponent(score)}&pelanggaran=${encodeURIComponent(cheatCount)}`;
+                
+                fetch(GOOGLE_SCRIPT_URL + urlParams, { mode: 'no-cors' })
+                    .then(() => {
+                        dbBadge.innerText = '✅ Nilai berhasil tersimpan di database Guru!';
+                        dbBadge.style.background = '#d1fae5';
+                        dbBadge.style.color = '#065f46';
+                    })
+                    .catch((err) => {
+                        dbBadge.innerText = '⚠️ Gagal menyimpan ke database.';
+                        dbBadge.style.background = '#fee2e2';
+                        dbBadge.style.color = '#991b1b';
+                    });
             }
 
             document.getElementById('result-screen').style.display = 'block';
@@ -430,12 +458,17 @@
         }
 
         function downloadPNG() {
+            const dbBadge = document.getElementById('db-status-badge');
+            const displayStyle = dbBadge.style.display;
+            dbBadge.style.display = 'none';
+
             const captureArea = document.getElementById('capture-area');
             html2canvas(captureArea).then(canvas => {
                 const link = document.createElement('a');
                 link.download = 'Hasil_Ujian_' + document.getElementById('student-name').value + '.png';
                 link.href = canvas.toDataURL();
                 link.click();
+                dbBadge.style.display = displayStyle;
             });
         }
 
@@ -445,11 +478,23 @@
             const no = document.getElementById('student-no').value;
             const score = document.getElementById('res-score').innerText;
             
-            let cheatStatus = cheatCount > 0 ? `⚠️ Saya terdeteksi melakukan ${cheatCount} kali perpindahan layar.` : `✅ Saya mengerjakan dengan jujur tanpa keluar layar.`;
+            let penalty = cheatCount * 2;
+            let cheatStatus = cheatCount > 0 
+                ? `⚠️ Saya terdeteksi melakukan ${cheatCount} kali perpindahan layar.
+🔻 *Catatan Pengurangan Poin: -${penalty}*` 
+                : `✅ Saya mengerjakan dengan jujur tanpa keluar layar.`;
             
-            const text = `*HASIL UJIAN MATEMATIKA* 🧮\n\n👤 Nama: ${name}\n🏫 Kelas: ${cls}\n🔢 No. Presensi: ${no}\n\n🎯 *Skor Pilgan:* ${score}\n${cheatStatus}\n\nMohon bantuannya untuk mengoreksi jawaban uraian saya di buku tulis. Terima kasih! 🙏`;
+            const text = `*HASIL UJIAN MATEMATIKA* 🧮
+
+👤 Nama: ${name}
+🏫 Kelas: ${cls}
+🔢 No. Presensi: ${no}
+
+🎯 *Skor Pilgan:* ${score}
+${cheatStatus}
+
+Mohon bantuannya untuk mengoreksi jawaban uraian saya di buku tulis. Terima kasih! 🙏`;
             
-            // Menggunakan format nomor spesifik
             const url = `https://wa.me/${NOMOR_WA_GURU}?text=${encodeURIComponent(text)}`;
             window.open(url, '_blank');
         }
